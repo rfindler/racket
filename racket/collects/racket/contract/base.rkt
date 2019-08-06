@@ -22,7 +22,8 @@
          "private/orc.rkt"
          "private/list.rkt"
          "private/and.rkt"
-         "private/property.rkt")
+         "private/property.rkt"
+         "private/define-region.rkt")
 
 (provide
  base->?
@@ -145,6 +146,8 @@
  property/c
  suggest/c
  struct-guard/c
+
+ define-region
 
  ;; not documented.... (ie unintentional export)
  n->th)

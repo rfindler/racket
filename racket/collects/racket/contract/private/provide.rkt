@@ -11,12 +11,14 @@
                                   provide/contract-info-original-id
                                   contract-rename-id-property
                                   contract-lifted-property
-                                  contract-neg-party-property)))
+                                  contract-neg-party-property
+                                  set-up-contract-boundary-via-identifiers)))
 
 (require (for-syntax racket/base
                      racket/list
                      racket/struct-info
                      setup/path-to-relative
+                     racket/stxparam-exptime
                      "application-arity-checking.rkt"
                      "arr-i-parse.rkt"
                      (prefix-in a: "helpers.rkt")
@@ -88,7 +90,8 @@
   ;; rename-id : identifier? : the name the lifted expression is bound to
   ;; contract-id : identifier? : the name of the contract expression
   ;; original-id : identifier? : the identifier being contracted
-  (struct provide/contract-info (rename-id contract-id original-id))
+  ;; use-current-contract-region? : boolean? : if #f, just uses quote-module-name as the neg party
+  (struct provide/contract-info (rename-id contract-id original-id use-current-contract-region?))
 
   ;; keys for syntax property used below
   (define rename-id-key (gensym 'contract:rename-id))
@@ -114,6 +117,30 @@
 
   (define global-saved-id-table (make-hasheq))
 
+  (define (hash-ref2 ht2 key1 use-contract-region?)
+    (cond
+      [use-contract-region?
+       (define key2 (syntax-parameter-value #'current-contract-region))
+       (define ht (hash-ref ht2 key1 #f))
+       (unless ht
+         (set! ht (make-hasheq))
+         (hash-set! ht2 key1 ht))
+       (hash-ref ht key2 #f)]
+      [else
+       (hash-ref ht2 key1 #f)]))
+
+  (define (hash-set!2 ht2 key1 use-contract-region? nv)
+    (cond
+      [use-contract-region?
+       (define key2 (syntax-parameter-value #'current-contract-region))
+       (define ht (hash-ref ht2 key1 #f))
+       (unless ht
+         (set! ht (make-hasheq))
+         (hash-set! ht2 key1 ht))
+       (hash-set! ht key2 nv)]
+      [else
+       (hash-set! ht2 key1 nv)]))
+  
   (struct provide/contract-arrow-transformer provide/contract-info
     (saved-ho-id-table
      partially-applied-id
@@ -127,27 +154,41 @@
             [extra-neg-party-argument-fn 
              (provide/contract-arrow-transformer-extra-neg-party-argument-fn self)]
             [valid-arg-lists (provide/contract-arrow-transformer-valid-argument-lists self)]
-            [rename-id (provide/contract-info-rename-id self)])
+            [rename-id (provide/contract-info-rename-id self)]
+            [use-current-contract-region? (provide/contract-info-use-current-contract-region? self)])
         (with-syntax ([partially-applied-id partially-applied-id]
                       [extra-neg-party-argument-fn extra-neg-party-argument-fn])
           (if (eq? 'expression (syntax-local-context))
               ;; In an expression context:
-              (let* ([key (syntax-local-lift-context)]
+              (let* ([key (if use-current-contract-region?
+                              (syntax-parameter-value #'current-contract-region)
+                              (syntax-local-lift-context))]
                      ;; Already lifted in this lifting context?
                      [lifted-neg-party
-                      (or (hash-ref global-saved-id-table key #f)
+                      (or (hash-ref2
+                           global-saved-id-table
+                           key
+                           use-current-contract-region?)
                           ;; No: lift the neg name creation
                           (syntax-local-introduce 
                            (syntax-local-lift-expression
                             (add-lifted-property
-                             #'(quote-module-name)))))])
-                (when key (hash-set! global-saved-id-table key lifted-neg-party))
+                             (if use-current-contract-region?
+                                 ((syntax-parameter-value #'current-contract-region) stx)
+                                 #'(quote-module-name))))))])
+                (when key
+                  (hash-set!2 global-saved-id-table
+                              key
+                              use-current-contract-region?
+                              lifted-neg-party))
                 ;; Expand to a use of the lifted expression:
                 (define (adjust-location new-stx)
                   (datum->syntax new-stx (syntax-e new-stx) stx new-stx))
                 (define (gen-slow-path-code)
                   (define lifted-ctc-val
-                    (or (hash-ref saved-ho-id-table key #f)
+                    (or (hash-ref2 saved-ho-id-table
+                                   key
+                                   use-current-contract-region?)
                         ;; No: lift the neg name creation
                         (with-syntax ([lifted-neg-party (syntax-local-introduce lifted-neg-party)])
                           (syntax-local-introduce 
@@ -155,7 +196,9 @@
                             (syntax-local-lift-expression
                              (add-lifted-property
                               #'(partially-applied-id lifted-neg-party))))))))
-                  (when key (hash-set! saved-ho-id-table key lifted-ctc-val))
+                  (when key (hash-set!2 saved-ho-id-table key
+                                        use-current-contract-region?
+                                        lifted-ctc-val))
                   (adjust-location (syntax-local-introduce lifted-ctc-val)))
                 (syntax-case stx (set!)
                   [name 
@@ -191,7 +234,8 @@
       (let ([partially-applied-id (provide/contract-transformer-partially-applied-id self)]
             [saved-id-table (provide/contract-transformer-saved-id-table self)]
             [rename-id (provide/contract-info-rename-id self)]
-            [blame (provide/contract-transformer-blame self)])
+            [blame (provide/contract-transformer-blame self)]
+            [use-current-contract-region? (provide/contract-info-use-current-contract-region? self)])
         (with-syntax ([partially-applied-id partially-applied-id]
                       [blame blame])
           (if (eq? 'expression (syntax-local-context))
@@ -199,7 +243,7 @@
               (let* ([key (syntax-local-lift-context)]
                      ;; Already lifted in this lifting context?
                      [lifted-ctcd-val
-                      (or (hash-ref saved-id-table key #f)
+                      (or (hash-ref2 saved-id-table key use-current-contract-region?)
                           ;; No: lift the neg name creation
                           (add-rename-id rename-id
                            (syntax-local-introduce
@@ -208,7 +252,8 @@
                               #'(with-contract-continuation-mark
                                  (cons blame 'no-negative-party)
                                  (partially-applied-id (quote-module-name))))))))])
-                (when key (hash-set! saved-id-table key lifted-ctcd-val))
+                (when key (hash-set!2 saved-id-table key
+                                      use-current-contract-region? lifted-ctcd-val))
                 (define (adjust-location new-stx)
                   (datum->syntax new-stx (syntax-e new-stx) stx new-stx))
                 ;; Expand to a use of the lifted expression:
@@ -231,9 +276,13 @@
               ;; expressions:
               (quasisyntax/loc stx (#%expression #,stx)))))))
 
-  (define (make-provide/contract-transformer rename-id cid id eid pos [pid #f] [blame #f])
+  (define (make-provide/contract-transformer rename-id cid id eid pos
+                                             use-current-contract-region?
+                                             [pid #f] [blame #f])
     (if pid
-        (provide/contract-transformer rename-id cid id (make-hasheq) pid blame)
+        (provide/contract-transformer rename-id cid id
+                                      use-current-contract-region?
+                                      (make-hasheq) pid blame)
         (begin
           ;; TODO: this needs to change!
           ;; syntax/parse uses this
@@ -246,9 +295,12 @@
                  #`(app #,id args ...))]
               [x (identifier? #'x) id])))))
   
-  (define (make-provide/contract-arrow-transformer rename-id contract-id id pai enpfn val)
+  (define (make-provide/contract-arrow-transformer rename-id contract-id id
+                                                   use-current-contract-region?
+                                                   pai enpfn val)
     (provide/contract-arrow-transformer rename-id
                                         contract-id id
+                                        use-current-contract-region?
                                         (make-hasheq)
                                         pai enpfn val)))
 
@@ -283,16 +335,17 @@
     (with-syntax ([code
                    (syntax-property
                     (quasisyntax/loc stx
-                      (begin #,(internal-function-to-be-figured-out #'ctrct
-                                                                    id
-                                                                    (or reflect-id id)
-                                                                    (or user-rename-id 
-                                                                        id)
-                                                                    id-rename
-                                                                    (stx->srcloc-expr srcloc-id)
-                                                                    'provide/contract
-                                                                    pos-module-source
-                                                                    #f)
+                      (begin #,(set-up-contract-boundary-via-identifiers #'ctrct
+                                                                         id
+                                                                         (or reflect-id id)
+                                                                         id-rename
+                                                                         'provide/contract
+                                                                         #f
+                                                                         (or user-rename-id 
+                                                                             id)
+                                                                         (stx->srcloc-expr srcloc-id)
+                                                                         pos-module-source
+                                                                         #f)
                              #,@(let ([upe (current-unprotected-submodule-name)])
                                   (if upe
                                       (list #`(module+ #,upe
@@ -310,18 +363,25 @@
 (define-for-syntax (stx->srcloc-expr srcloc-stx)
   #`(quote-srcloc #,srcloc-stx))
 
-(define-for-syntax (internal-function-to-be-figured-out ctrct
-                                                        id 
-                                                        ex-id
-                                                        name-for-blame
-                                                        id-rename
-                                                        srcloc-expr
-                                                        contract-error-name
-                                                        pos-module-source
-                                                        context-limit)
+(define-for-syntax (set-up-contract-boundary-via-identifiers
+                    ctrct               ;; syntax?[contract]
+                    id                  ;; identifier bound to the uncontracted value
+                    ex-id               ;; identifier that names the value
+                    ;;                     (used in a let to name the wrapper)
+                    id-rename           ;; identifier that gets the contract on it
+                    ;;                     (bound by the syntax in the result)
+                    contract-error-name ;; arg to coerce contract
+                    use-current-contract-region? ;; boolean? --> #f means use module name
+                    name-for-blame      ;; make-blame: name argument -- symbol?
+                    srcloc-expr         ;; make-blame: first argument
+                    pos-module-source   ;; make-blame: positive blame party
+                    context-limit)      ;; make-blame argument
   (with-syntax ([id id]
                 [(partially-applied-id extra-neg-party-argument-fn contract-id blame-id) 
-                 (generate-temporaries (list 'idX 'idY 'idZ 'idB))]
+                 (generate-temporaries (list 'partially-applied-id
+                                             'extra-neg-party-argument-fn
+                                             'contract-id
+                                             'blame-id))]
                 [ctrct ctrct])
     (define-values (arrow? definition-of-plus-one-acceptor the-valid-app-shapes)
       (build-definition-of-plus-one-acceptor #'ctrct
@@ -329,18 +389,25 @@
                                              #'extra-neg-party-argument-fn
                                              #'contract-id
                                              #'blame-id))
-    (syntax-local-lift-module-end-declaration
-     #`(begin 
-         (define-values (partially-applied-id blame-id)
-           (do-partial-app contract-id
-                           id
-                           '#,name-for-blame
-                           #,pos-module-source
-                           #,srcloc-expr
-                           #,context-limit))
-         #,@(if arrow?
-                (list definition-of-plus-one-acceptor)
-                (list))))
+
+    (define do-lifting? (not use-current-contract-region?))
+
+    (define supplementary-definitions
+      #`(begin 
+          (define-values (partially-applied-id blame-id)
+            (do-partial-app contract-id
+                            id
+                            '#,name-for-blame
+                            #,pos-module-source
+                            #,srcloc-expr
+                            #,context-limit))
+          #,@(if arrow?
+                 (list definition-of-plus-one-acceptor)
+                 (list))))
+
+    (when do-lifting?
+      (syntax-local-lift-module-end-declaration
+       supplementary-definitions))
 
     #`(begin
         (define contract-id
@@ -356,15 +423,19 @@
                 #`(make-provide/contract-arrow-transformer 
                    (quote-syntax #,id-rename)
                    (quote-syntax contract-id) (quote-syntax id)
+                   #,use-current-contract-region?
                    (quote-syntax partially-applied-id)
                    (quote-syntax extra-neg-party-argument-fn)
                    #,the-valid-app-shapes)
                 #`(make-provide/contract-transformer
                    (quote-syntax #,id-rename)
                    (quote-syntax contract-id) (quote-syntax id)
-                   #f #f
+                   #f #f #,use-current-contract-region?
                    (quote-syntax partially-applied-id)
-                   (quote-syntax blame-id)))))))
+                   (quote-syntax blame-id))))
+        #,@(if do-lifting?
+               (list)
+               (list supplementary-definitions)))))
 
 (define-for-syntax (build-definition-of-plus-one-acceptor ctrct
                                                           id
@@ -479,15 +550,16 @@
                       " #:pos-source, #:srcloc, #:name-for-blame, or #:context-limit")
                      stx
                      (car kwd-args))])])))
-          (internal-function-to-be-figured-out #'ctrct
-                                               #'orig-id
-                                               #'orig-id
-                                               name-for-blame
-                                               #'new-id
-                                               srcloc-expr
-                                               'define-module-boundary-contract
-                                               pos-blame-party-expr
-                                               context-limit))])]))
+          (set-up-contract-boundary-via-identifiers #'ctrct
+                                                    #'orig-id
+                                                    #'orig-id
+                                                    #'new-id
+                                                    'define-module-boundary-contract
+                                                    #f
+                                                    name-for-blame
+                                                    srcloc-expr
+                                                    pos-blame-party-expr
+                                                    context-limit))])]))
 
 ;; ... -> (values (or/c #f (-> neg-party val)) blame)
 (define (do-partial-app ctc val name pos-module-source source context-limit)
