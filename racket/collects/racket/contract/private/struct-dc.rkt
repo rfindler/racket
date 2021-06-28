@@ -766,7 +766,21 @@
    #:generate struct/dc-generate
    #:exercise struct/dc-exercise))
 
-(define (build-struct/dc subcontracts constructor pred struct-name here name-info struct/c?)
+(define (build-struct/dc subcontracts-thunk constructor-thunk pred-thunk struct-name here module-path name-info struct/c?)
+  (define-values (subcontracts constructor pred)
+    (with-handlers ([exn:fail:contract:variable?
+                     (λ (exn)
+                       (raise
+                        (exn:fail:contract:variable
+                         (format "struct ~s: undefined;\n cannot reference struct in ~a before its definition\n  in module: ~s"
+                                 struct-name
+                                 (if struct/c? 'struct/c 'struct/dc)
+                                 module-path)
+                         (exn-continuation-marks exn)
+                         struct-name)))])
+      (values (subcontracts-thunk)
+              (constructor-thunk)
+              (pred-thunk))))
   (for ([subcontract (in-list subcontracts)])
     (when (and (indep? subcontract)
                (not (mutable? subcontract)))
@@ -1285,11 +1299,12 @@
                      (cdr clauses)))])))
   
   (syntax-property
-   #`(build-struct/dc (list #,@structs)
-                      #,(list-ref info 1)
-                      #,(list-ref info 2)
+   #`(build-struct/dc (λ () (list #,@structs))
+                      (λ () #,(list-ref info 1))
+                      (λ () #,(list-ref info 2))
                       '#,struct-id
                       (quote-module-name)
+                      (quote-module-path)
                       '#,struct-id
                       #,struct/c?)
    'disappeared-use

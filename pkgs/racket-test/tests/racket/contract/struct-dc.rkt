@@ -1322,4 +1322,16 @@
                         'neg)))
     (λ (x) (and (exn:fail:syntax? x)
                 (regexp-match #rx"the field: g is depended on.*no contract"
-                              (exn-message x))))))
+                              (exn-message x)))))
+
+  (contract-error-test
+   'struct/c-forward-reference
+   '(let ()
+      (struct/c s integer?)
+      (struct s (x))
+      (void))
+   (λ (x) (and (exn:fail:contract:variable? x)
+               (regexp-match #rx"^struct s:"
+                             (exn-message x)))))
+
+  )
