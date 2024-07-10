@@ -105,7 +105,7 @@
                     stx #'id)]
                   [(name more ...)
                    (with-syntax ([app (datum->syntax stx '#%app)])
-                     (if (valid-argument-list? stx valid-arg-lists)
+                     (if (and #f (valid-argument-list? stx valid-arg-lists))
                          (with-syntax ([lifted-neg-party (syntax-local-introduce lifted-neg-party)])
                            (adjust-location
                             #`(app #,(add-neg-party (add-rename-id
@@ -479,6 +479,7 @@
                            (if start-swapped? pos-module-source #f)
                            (not start-swapped?) ;; original?
                            #:context-limit context-limit))
+  #;
   (with-contract-continuation-mark
    (cons blme 'no-negative-party) ; we don't know the negative party yet
    ;; computing neg-accepter may involve some front-loaded checking. instrument
@@ -491,4 +492,6 @@
    ;; check and then toss the results.
    (neg-accepter 'incomplete-blame-from-provide.rkt)
 
-   (values neg-accepter blme)))
+   (values neg-accepter blme))
+  (values (λ args val)
+          blme))

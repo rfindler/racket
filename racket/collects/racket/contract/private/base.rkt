@@ -69,7 +69,8 @@
                          #f)))]))
 
 (define (apply-contract c v pos neg name loc context-limit)
-  ((make-apply-contract c pos neg name loc context-limit) v))
+  ;((make-apply-contract c pos neg name loc context-limit) v)
+  v)
 
 (define (make-apply-contract c pos neg name loc context-limit [backwards? #f])
   (let ([c (coerce-contract 'contract c)])
