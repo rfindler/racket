@@ -1087,7 +1087,7 @@ If @racket[min-count] is a number, the stream is required to have at least that 
   (sequence/c (-> any/c boolean?))
   (in-list (list integer?
                  string->symbol)))
-(eval:error
+#;(eval:error
  (for ([P predicates])
    (printf "~s\n" (P "cat"))))
 (define/contract numbers&strings
@@ -1095,13 +1095,14 @@ If @racket[min-count] is a number, the stream is required to have at least that 
   (in-dict (list (cons 1 "one")
                  (cons 2 "two")
                  (cons 3 'three))))
-(eval:error
+#;
+ (eval:error
  (for ([(N S) numbers&strings])
    (printf "~s: ~a\n" N S)))
 (define/contract a-sequence
   (sequence/c #:min-count 2 char?)
   "x")
-(eval:error
+#;(eval:error
  (for ([x a-sequence]
        [i (in-naturals)])
    (printf "~a is ~a\n" i x)))

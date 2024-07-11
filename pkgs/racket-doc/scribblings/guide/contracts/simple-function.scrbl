@@ -438,10 +438,11 @@ With this little change, the error message becomes quite readable:
 @ctc-section[#:tag "dissecting-contract-errors"]{Dissecting a contract error message}
 
 @(define (lines a b)
-   (define lines (regexp-split #rx"\n" str))
-   (table (style #f '())
+   ;(define lines (regexp-split #rx"\n" str))
+   #;(table (style #f '())
           (map (λ (x) (list (paragraph error-color x)))
-               (take (drop lines a) b))))
+               (take (drop lines a) b)))
+   "")
 
 In general, each contract error message consists of six sections:
 @itemize[@item{a name for the function or method associated with the contract

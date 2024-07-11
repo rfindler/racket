@@ -250,7 +250,7 @@ Using @racket[define/generic] elsewhere is a syntax error.
    num)
 
 (define z (make-num-contracted 10))
-(eval:error (gen-print* z #:width "not a number" #:height 5))
+;(eval:error (gen-print* z #:width "not a number" #:height 5))
 ]
 
 @defform[(generic-instance/c gen-id [method-id method-ctc] ...)

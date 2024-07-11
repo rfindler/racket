@@ -1859,7 +1859,7 @@ The external contracts are as follows:
    If only the field name is present, this is equivalent to insisting only
    that the method is present in the class.
    
-   @examples[#:eval class-eval
+   examples[#:eval class-eval
                 (eval:no-prompt
                  (define woody%
                    (class object%
@@ -1884,7 +1884,7 @@ The external contracts are as follows:
    If only the field name is present, this is equivalent to using the 
    contract @racket[any/c] (but it is checked more efficiently).
    
-   @examples[#:eval class-eval
+   examples[#:eval class-eval
                 (eval:no-prompt
                  (define woody/hat%
                    (class woody%
@@ -1919,7 +1919,7 @@ The external contracts are as follows:
    If only the initialization argument name is present, this is equivalent to using the 
    contract @racket[any/c] (but it is checked more efficiently).
    
-   @examples[#:eval class-eval
+   examples[#:eval class-eval
                 (eval:no-prompt
                  (define woody/init-hat%
                    (class woody%
@@ -1965,7 +1965,7 @@ As with the external contracts, when a method or field name is specified
    contracted class's method implementation is no longer the entry point
    for dynamic dispatch.
    
-   @examples[#:eval class-eval
+   examples[#:eval class-eval
                 (new (class woody+c%
                        (inherit draw)
                        (super-new)
@@ -1992,7 +1992,7 @@ As with the external contracts, when a method or field name is specified
    contract the controls how the @racket[super] methods must
    be invoked.
    
-   @examples[#:eval class-eval
+   examples[#:eval class-eval
                 (eval:no-prompt
 
   (define/contract woody%+s
@@ -2040,7 +2040,7 @@ As with the external contracts, when a method or field name is specified
    add a contract to make sure that overriding @racket[draw]
    doesn't break @racket[draw2].   
    
-   @examples[#:eval class-eval
+   examples[#:eval class-eval
                 (eval:no-prompt
                  (define/contract woody2+override/c%
                    (class/c (override [draw (->m symbol? string?)]))

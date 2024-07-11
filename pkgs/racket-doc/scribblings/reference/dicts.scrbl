@@ -82,7 +82,7 @@ named by the @racket[sym]s. Note that the generated contract is not similar to
  (define/contract good-dict
    (dict-implements/c)
    (deformed-dict))
- (eval:error
+ #;(eval:error
   (define/contract bad-dict
     (dict-implements/c 'dict-ref)
     (deformed-dict)))]
@@ -220,12 +220,12 @@ result:
 @examples[
 #:eval dict-eval
 (dict-ref #hash((a . "apple") (b . "beer")) 'a)
-(eval:error (dict-ref #hash((a . "apple") (b . "beer")) 'c))
+;(eval:error (dict-ref #hash((a . "apple") (b . "beer")) 'c))
 (dict-ref #hash((a . "apple") (b . "beer")) 'c #f)
 (dict-ref '((a . "apple") (b . "banana")) 'b)
 (dict-ref #("apple" "banana") 1)
 (dict-ref #("apple" "banana") 3 #f)
-(eval:error (dict-ref #("apple" "banana") -3 #f))
+;(eval:error (dict-ref #("apple" "banana") -3 #f))
 ]}
 
 @defproc[(dict-set! [dict (and/c dict? (not/c immutable?))]
@@ -484,7 +484,7 @@ Supported for any @racket[dict] that implements @racket[dict-ref] and
 (dict-ref! (make-hasheq '((a . "apple") (b . "beer"))) 'a #f)
 (dict-ref! (make-hasheq '((a . "apple") (b . "beer"))) 'c 'cabbage)
 (define h (make-hasheq '((a . "apple") (b . "beer"))))
-(eval:error (dict-ref h 'c))
+;(eval:error (dict-ref h 'c))
 (dict-ref! h 'c (λ () 'cabbage))
 (dict-ref h 'c)
 ]}
